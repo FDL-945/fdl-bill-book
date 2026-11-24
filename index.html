@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="FDL Bill Book">
-  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241644";</script>
+  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241656";</script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>/**
  * pwa-runtime.js — runs only in the installed Android app (GitHub Pages build).
@@ -313,7 +313,7 @@
   .brand-text small { opacity: .8; font-size: 12px; }
 
   .nav {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(5, 1fr);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(6, 1fr);
     background: #fff; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px);
     box-shadow: 0 -2px 10px rgba(11,42,128,.08);
   }
@@ -537,7 +537,19 @@
 
   /* ---------- History / search ---------- */
   .search-bar { display: flex; gap: 8px; padding: 10px; }
-  .search-bar input { flex: 1; min-width: 0; min-height: var(--tap); border: 1.5px solid #c6d4ec; border-radius: 10px; padding: 0 12px; font-size: 16px; text-transform: uppercase; }
+  .search-bar input { flex: 1; min-width: 0; min-height: var(--tap); border: 1.5px solid #c6d4ec; border-radius: 10px; padding: 0 12px; font-size: 16px; }
+  .letter { position: sticky; top: 60px; z-index: 2; font-weight: 800; color: var(--navy); background: var(--bg); padding: 10px 4px 6px; font-size: 15px; }
+  .cust { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; margin-bottom: 8px; cursor: pointer; font: inherit; color: var(--ink); }
+  .cust:hover { box-shadow: 0 0 0 2px var(--blue), var(--shadow); }
+  .cust:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+  .cust .av { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--sky); color: var(--navy); display: grid; place-items: center; font-weight: 800; }
+  .cust .cm { flex: 1; min-width: 0; }
+  .cust .cn { display: block; font-weight: 700; color: var(--navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cust .cs { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cust .cp { flex: none; display: block; text-align: right; font-size: 12px; color: var(--muted); }
+  .cust .cp strong { display: block; font-size: 14px; color: #b45309; }
+  .cust .cp strong.paid { color: var(--ok); }
+  @media (max-width: 380px) { .nav-btn { font-size: 10.5px; } }
   .search-bar input::placeholder { text-transform: none; }
   .summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 12px 0; }
   @media (min-width: 700px) { .summary { grid-template-columns: repeat(4, 1fr); } }
@@ -622,6 +634,7 @@
       <button type="button" class="nav-btn" data-view="newbill"><span class="ni" aria-hidden="true">&#65291;</span><span>New Bill</span></button>
       <button type="button" class="nav-btn" data-view="history"><span class="ni" aria-hidden="true">&#128269;&#xFE0E;</span><span>History</span></button>
       <button type="button" class="nav-btn" data-view="bills"><span class="ni" aria-hidden="true">&#9776;</span><span>All Bills</span></button>
+      <button type="button" class="nav-btn" data-view="customers"><span class="ni" aria-hidden="true">&#128101;&#xFE0E;</span><span>Customers</span></button>
       <button type="button" class="nav-btn" data-view="reports"><span class="ni" aria-hidden="true">&#9638;</span><span>Reports</span></button>
     </nav>
   </header>
@@ -751,13 +764,23 @@
 
     <!-- Vehicle history -->
     <section id="view-history" class="view" hidden>
-      <h1 class="page-title">Vehicle History</h1>
+      <h1 class="page-title">History</h1>
       <form id="history-form" class="card search-bar" role="search">
-        <label class="sr-only" for="h-q">Vehicle number</label>
-        <input id="h-q" type="search" placeholder="Vehicle number, e.g. LEA-1234" autocapitalize="characters" spellcheck="false" enterkeyhint="search">
+        <label class="sr-only" for="h-q">Vehicle number or company name</label>
+        <input id="h-q" type="search" placeholder="Vehicle number or company name" autocapitalize="words" spellcheck="false" enterkeyhint="search">
         <button type="submit" class="btn primary">Search</button>
       </form>
       <div id="history-out" aria-live="polite"></div>
+    </section>
+
+    <!-- Customers (company names A to Z) -->
+    <section id="view-customers" class="view" hidden>
+      <h1 class="page-title">Customers</h1>
+      <div class="card search-bar">
+        <label class="sr-only" for="c-q">Filter company names</label>
+        <input id="c-q" type="search" placeholder="Type to filter names" autocapitalize="words" spellcheck="false">
+      </div>
+      <div id="customers-out" aria-live="polite"></div>
     </section>
 
     <!-- All bills -->
@@ -1694,7 +1717,8 @@ var FDLBill = (function () {
     editing: null,                // bill being edited, or null
     stash: null,
     billsNote: '',
-    billsPreset: null,            // hidden filter set by a dashboard tile                // e.g. "Pending bills" when opened from a dashboard tile                  // new-bill draft put aside while editing
+    billsPreset: null,
+    customers: null,              // company list for the Customers tab            // hidden filter set by a dashboard tile                // e.g. "Pending bills" when opened from a dashboard tile                  // new-bill draft put aside while editing
     reports: null,
     reportTab: 'daily'
   };
@@ -1816,7 +1840,7 @@ var FDLBill = (function () {
 
   /* =================== Views =================== */
 
-  var VIEWS = ['loading', 'fatal', 'dashboard', 'newbill', 'success', 'history', 'bills', 'reports'];
+  var VIEWS = ['loading', 'fatal', 'dashboard', 'newbill', 'success', 'history', 'customers', 'bills', 'reports'];
 
   function showView(name) {
     if (state.editing && name !== 'newbill') exitEdit(); // leaving the form cancels an unsaved edit
@@ -1832,6 +1856,7 @@ var FDLBill = (function () {
     if (name === 'bills') loadBills(true); // always fresh: new, edited or deleted bills show at once
     if (name === 'reports') { loadReports(); loadBackupStatus(); }
     if (name === 'history') setTimeout(function () { var q = $('#h-q'); if (!q.value) q.focus(); }, 50);
+    if (name === 'customers') loadCustomers();
   }
 
   /* =================== Bill list item =================== */
@@ -2633,17 +2658,18 @@ var FDLBill = (function () {
     if (ev) ev.preventDefault();
     var q = $('#h-q').value.trim();
     var out = clear($('#history-out'));
-    if (!S.normalizeVehicle(q)) { append(out, emptyState('Enter a vehicle number', 'Example: LEA-1234. Spaces, hyphens and capital letters do not matter.')); return; }
-    append(out, loadingBox('Searching all bills for ' + q.toUpperCase() + '…'));
-    rpc('searchBillsByVehicle', q).then(function (r) {
+    if (!q) { append(out, emptyState('Enter a vehicle number or company name', 'Example: LEA-1234 or Irfan Ghazi Khel. Capital letters, spaces and hyphens do not matter.')); return; }
+    append(out, loadingBox('Searching all bills for “' + q + '”…'));
+    rpc('searchHistory', q).then(function (r) {
       clear(out);
       if (!r.bills.length) {
-        append(out, emptyState('No bills found for “' + q.toUpperCase() + '”', 'Check the number and try again, or search a shorter part of it.'));
+        append(out, emptyState('No bills found for “' + q + '”', 'Check the spelling or number, or search a shorter part of it.'));
         return;
       }
       if (r.exactCount) {
         var s = r.summary;
-        append(out, el('div', { class: 'result-count', text: r.exactCount + (r.exactCount === 1 ? ' bill' : ' bills') + ' found for ' + r.vehicleNumber }));
+        var what = r.matchType === 'name' ? 'company ' : r.matchType === 'vehicle' ? 'vehicle ' : '';
+        append(out, el('div', { class: 'result-count', text: r.exactCount + (r.exactCount === 1 ? ' bill' : ' bills') + ' found for ' + what + r.title }));
         append(out, el('div', { class: 'summary' },
           stat('Total visits / bills', S.formatNumber(s.count) + (s.voidCount ? ' (+' + s.voidCount + ' cancelled)' : ''), 'accent'),
           stat('Total billed', pkr(s.totalBilled)),
@@ -2654,15 +2680,48 @@ var FDLBill = (function () {
         r.bills.slice(0, r.exactCount).forEach(function (b) { list.appendChild(billItem(b)); });
         append(out, list);
       } else {
-        append(out, el('div', { class: 'result-count', text: 'No exact match for “' + q.toUpperCase() + '”' }));
+        append(out, el('div', { class: 'result-count', text: 'No exact match for “' + q + '”' }));
       }
       if (r.partialCount) {
-        append(out, el('div', { class: 'group-label', text: r.partialCount + ' bill' + (r.partialCount === 1 ? '' : 's') + ' with similar vehicle numbers' }));
+        append(out, el('div', { class: 'group-label', text: r.partialCount + ' bill' + (r.partialCount === 1 ? '' : 's') + ' with similar vehicle numbers or names' }));
         var pl = el('div', { class: 'list' });
         r.bills.slice(r.exactCount).forEach(function (b) { pl.appendChild(billItem(b, { partial: true })); });
         append(out, pl);
       }
     }).catch(function (e) { clear(out); append(out, errorBox('Search failed: ' + e.message, searchHistory)); });
+  }
+
+  /* =================== Customers (A to Z) =================== */
+
+  function loadCustomers() {
+    var out = $('#customers-out');
+    if (!state.customers) { clear(out); append(out, loadingBox('Loading company names…')); }
+    rpc('getCustomers').then(function (r) {
+      state.customers = r.customers;
+      renderCustomers();
+    }).catch(function (e) { clear(out); append(out, errorBox('Could not load customers: ' + e.message, loadCustomers)); });
+  }
+
+  function renderCustomers() {
+    var out = clear($('#customers-out'));
+    var all = state.customers || [];
+    var f = $('#c-q').value.trim().toLowerCase();
+    var list = f ? all.filter(function (c) { return c.name.toLowerCase().indexOf(f) !== -1 || (c.phone || '').replace(/\D/g, '').indexOf(f.replace(/\D/g, '') || '~') !== -1; }) : all;
+    if (!all.length) { append(out, emptyState('No customers yet', 'Company names appear here after you create bills.')); return; }
+    append(out, el('div', { class: 'result-count', text: list.length + (list.length === 1 ? ' company' : ' companies') + (f ? ' match “' + $('#c-q').value.trim() + '”' : ' · A to Z') }));
+    if (!list.length) return;
+    var lastLetter = '';
+    list.forEach(function (c) {
+      var letter = (c.name.trim().charAt(0) || '#').toUpperCase();
+      if (!/[A-Z]/.test(letter)) letter = '#';
+      if (letter !== lastLetter) { out.appendChild(el('div', { class: 'letter', text: letter })); lastLetter = letter; }
+      var sub = billsWord(c.count) + (c.vehicles.length ? ' · ' + c.vehicles.slice(0, 3).join(', ') + (c.vehicles.length > 3 ? ' +' + (c.vehicles.length - 3) : '') : '');
+      out.appendChild(el('button', { type: 'button', class: 'cust', onclick: function () { goHistory(c.name); } },
+        el('span', { class: 'av', 'aria-hidden': 'true', text: letter }),
+        el('span', { class: 'cm' }, el('span', { class: 'cn', text: c.name }), el('span', { class: 'cs', text: sub })),
+        el('span', { class: 'cp' }, c.pending > 0 ? 'Pending' : 'Billed',
+          el('strong', { class: c.pending > 0 ? '' : 'paid', text: pkr(c.pending > 0 ? c.pending : c.billed) }))));
+    });
   }
 
   /* =================== All bills =================== */
@@ -2866,6 +2925,7 @@ var FDLBill = (function () {
     $('#succ-another').addEventListener('click', function () { resetForm(); showView('newbill'); setTimeout(function () { form().elements.customerName.focus(); }, 60); });
 
     $('#history-form').addEventListener('submit', searchHistory);
+    $('#c-q').addEventListener('input', renderCustomers);
     $('#bills-sort').addEventListener('change', function () { loadBills(true); });
     $('#bills-more').addEventListener('click', function () { loadBills(false); });
     $('#reports-filter').addEventListener('submit', loadReports);
