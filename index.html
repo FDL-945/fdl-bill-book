@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="FDL Bill Book">
-  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241626";</script>
+  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241644";</script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>/**
  * pwa-runtime.js — runs only in the installed Android app (GitHub Pages build).
@@ -378,6 +378,9 @@
   button.stat { border: 0; text-align: left; font: inherit; cursor: pointer; position: relative; }
   button.stat::after { content: '\203A'; position: absolute; right: 12px; top: 10px; font-size: 20px; color: var(--muted); opacity: .7; }
   button.stat.accent::after { color: #c9d8ff; }
+  .stat-count { display: inline-block; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--sky); border-radius: 99px; padding: 1px 8px; }
+  .stat.pending .stat-count { background: #fff1e0; color: #b45309; }
+  .stat.discount .stat-count { background: var(--ok-bg); color: var(--ok); }
   button.stat:hover { box-shadow: 0 0 0 2px var(--blue), var(--shadow); }
   button.stat:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
   .stat.discount strong { color: #1b7f3b; }
@@ -1884,11 +1887,17 @@ var FDLBill = (function () {
   }
 
   /** A stat tile you can tap: opens All Bills with the matching filter. */
-  function statBtn(label, value, cls, filters, title) {
+  function billsWord(n) { return S.formatNumber(n) + (n === 1 ? ' bill' : ' bills'); }
+
+  /** count (optional): number of bills behind this box, shown small under the amount. */
+  function statBtn(label, value, cls, filters, title, count) {
+    var hasCount = typeof count === 'number';
     return el('button', {
-      type: 'button', class: 'stat ' + (cls || ''), 'aria-label': label + ': ' + value + '. Show these bills.',
+      type: 'button', class: 'stat ' + (cls || ''),
+      'aria-label': label + ': ' + value + (hasCount ? ', ' + billsWord(count) : '') + '. Show these bills.',
       onclick: function () { openBillsWith(filters, title); }
-    }, el('small', { text: label }), el('strong', { text: value }));
+    }, el('small', { text: label }), el('strong', { text: value }),
+      hasCount ? el('span', { class: 'stat-count', text: billsWord(count) }) : null);
   }
 
   /** Open All Bills with a ready-made filter (used by the dashboard tiles). */
@@ -1916,10 +1925,10 @@ var FDLBill = (function () {
       append(box, [
         statBtn('Total Bills Generated', S.formatNumber(d.totalBills), 'accent wide', { status: 'ACTIVE' }, 'All bills'),
         statBtn('Bills Today', S.formatNumber(d.billsToday), '', { status: 'ACTIVE', dateFrom: today, dateTo: today }, 'Bills made today'),
-        statBtn('Total Billed', pkr(d.totalBilled), '', { status: 'ACTIVE' }, 'All billed bills'),
-        statBtn('Total Received', pkr(d.totalReceived), '', { status: 'ACTIVE', show: 'RECEIVED' }, 'Bills with payment received'),
-        statBtn('Total Discount', pkr(d.totalDiscount || 0), 'discount', { status: 'ACTIVE', show: 'DISCOUNT' }, 'Bills with a discount'),
-        statBtn('Total Pending', pkr(d.totalPending), 'pending', { status: 'ACTIVE', show: 'PENDING' }, 'Pending bills (money still due)')
+        statBtn('Total Billed', pkr(d.totalBilled), '', { status: 'ACTIVE' }, 'All billed bills', d.billedCount),
+        statBtn('Total Received', pkr(d.totalReceived), '', { status: 'ACTIVE', show: 'RECEIVED' }, 'Bills with payment received', d.receivedCount),
+        statBtn('Total Discount', pkr(d.totalDiscount || 0), 'discount', { status: 'ACTIVE', show: 'DISCOUNT' }, 'Bills with a discount', d.discountCount),
+        statBtn('Total Pending', pkr(d.totalPending), 'pending', { status: 'ACTIVE', show: 'PENDING' }, 'Pending bills (money still due)', d.pendingCount)
       ]);
       clear(recent);
       if (!d.recent.length) {
