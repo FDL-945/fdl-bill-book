@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="FDL Bill Book">
-  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241613";</script>
+  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241616";</script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>/**
  * pwa-runtime.js — runs only in the installed Android app (GitHub Pages build).
@@ -880,8 +880,9 @@ var FDL_ASSETS = {
   /** Row 12 "Others" is replaced by up to this many named items (name + amount). */
   var MAX_OTHER_ITEMS = 5;
 
-  /** Row 10: the owner chooses F or S for W8. Stored in `w8Type`. */
-  var W8_TYPES = { F: 'F', S: 'S' };
+  /** Row 10: the owner chooses F-B, S-I or F-R for W8. Stored in `w8Type`. */
+  var W8_TYPES = { 'F-B': 'F-B', 'S-I': 'S-I', 'F-R': 'F-R' };
+  var W8_CHOICES = ['F-B', 'S-I', 'F-R'];
 
   function w8Label(type) {
     return W8_TYPES[type] ? 'W8 (' + W8_TYPES[type] + ')' : 'W8';
@@ -1035,9 +1036,9 @@ var FDL_ASSETS = {
     bill.nozzelType = nt;
 
     // Row 10: F or S must be chosen when a W8 amount is entered.
-    var wt = String(raw.w8Type || '').trim().toUpperCase();
-    if (wt && !W8_TYPES[wt]) { errors.w8Type = 'Choose F or S for W8.'; wt = ''; }
-    if (bill.itemW8 !== null && !wt && !errors.itemW8) errors.w8Type = 'Choose F or S for W8.';
+    var wt = String(raw.w8Type || '').trim().toUpperCase().replace(/\s+/g, '');
+    if (wt && !W8_TYPES[wt]) { errors.w8Type = 'Choose F-B, S-I or F-R for W8.'; wt = ''; }
+    if (bill.itemW8 !== null && !wt && !errors.itemW8) errors.w8Type = 'Choose F-B, S-I or F-R for W8.';
     bill.w8Type = wt;
 
     // Row 12+: named "other" items. Old bills with only an itemOthers amount become one "Others" item.
@@ -1183,6 +1184,7 @@ var FDL_ASSETS = {
     MAX_OTHER_ITEMS: MAX_OTHER_ITEMS,
     nozzelLabel: nozzelLabel,
     W8_TYPES: W8_TYPES,
+    W8_CHOICES: W8_CHOICES,
     w8Label: w8Label,
     parseOtherItems: parseOtherItems,
     billRows: billRows,
@@ -1887,12 +1889,13 @@ var FDLBill = (function () {
             el('label', null, el('input', { type: 'radio', name: 'nozzelType', value: 'NEW' }), el('span', { text: 'New' })),
             el('label', null, el('input', { type: 'radio', name: 'nozzelType', value: 'SERVICE' }), el('span', { text: 'Service' }))));
       } else if (it.key === 'itemW8') {
-        // Row 10: choose F or S, then enter the amount.
+        // Row 10: choose F-B, S-I or F-R, then enter the amount.
         mid = el('div', { class: 'item-mid' },
           el('label', { for: id, text: 'W8' }),
-          el('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'W8: F or S' },
-            el('label', null, el('input', { type: 'radio', name: 'w8Type', value: 'F' }), el('span', { text: 'F' })),
-            el('label', null, el('input', { type: 'radio', name: 'w8Type', value: 'S' }), el('span', { text: 'S' }))));
+          el('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'W8: F-B, S-I or F-R' },
+            S.W8_CHOICES.map(function (c) {
+              return el('label', null, el('input', { type: 'radio', name: 'w8Type', value: c }), el('span', { text: c }));
+            })));
       } else {
         mid = el('label', { for: id, text: it.label });
       }
