@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="FDL Bill Book">
-  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241656";</script>
+  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241709";</script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>/**
  * pwa-runtime.js — runs only in the installed Android app (GitHub Pages build).
@@ -538,6 +538,15 @@
   /* ---------- History / search ---------- */
   .search-bar { display: flex; gap: 8px; padding: 10px; }
   .search-bar input { flex: 1; min-width: 0; min-height: var(--tap); border: 1.5px solid #c6d4ec; border-radius: 10px; padding: 0 12px; font-size: 16px; }
+  /* New Bill suggestions (previously used values) */
+  .fld.has-sugg { position: relative; }
+  .sugg { position: absolute; left: 0; right: 0; top: 100%; margin-top: -8px; z-index: 40; background: #fff; border: 1.5px solid var(--blue); border-radius: 10px; box-shadow: 0 8px 24px rgba(11,42,128,.18); max-height: 264px; overflow-y: auto; padding: 4px 0; }
+  .sugg-item { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 9px 12px; font: inherit; cursor: pointer; color: var(--ink); min-height: 44px; }
+  .sugg-item + .sugg-item { border-top: 1px solid var(--line); }
+  .sugg-item:hover, .sugg-item.active { background: var(--sky); }
+  .sugg-item b { display: block; font-size: 15px; color: var(--navy); }
+  .sugg-item small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px; }
+  .sugg-head { font-size: 11.5px; font-weight: 700; color: var(--muted); padding: 4px 12px 2px; text-transform: uppercase; letter-spacing: .4px; }
   .letter { position: sticky; top: 60px; z-index: 2; font-weight: 800; color: var(--navy); background: var(--bg); padding: 10px 4px 6px; font-size: 15px; }
   .cust { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; margin-bottom: 8px; cursor: pointer; font: inherit; color: var(--ink); }
   .cust:hover { box-shadow: 0 0 0 2px var(--blue), var(--shadow); }
@@ -1718,7 +1727,8 @@ var FDLBill = (function () {
     stash: null,
     billsNote: '',
     billsPreset: null,
-    customers: null,              // company list for the Customers tab            // hidden filter set by a dashboard tile                // e.g. "Pending bills" when opened from a dashboard tile                  // new-bill draft put aside while editing
+    customers: null,
+    sugg: null,                   // previously used names / vehicles / types / phones              // company list for the Customers tab            // hidden filter set by a dashboard tile                // e.g. "Pending bills" when opened from a dashboard tile                  // new-bill draft put aside while editing
     reports: null,
     reportTab: 'daily'
   };
@@ -2259,6 +2269,7 @@ var FDLBill = (function () {
       state.imgCache.set(res.bill.billId, dataUrl);
       state.lastSaved = { bill: res.bill, dataUrl: dataUrl };
       resetForm(); // only after the server confirmed both PNG + row are stored
+      loadSuggestions();
       showSuccess(res.warning, 'Bill saved');
     } catch (e) {
       unbusy(); setSaving(false);
@@ -2324,6 +2335,7 @@ var FDLBill = (function () {
       unbusy(); setSaving(false);
       if (res.unchanged) { toast('Nothing was changed.'); return; }
       state.imgCache.set(id, png);
+      loadSuggestions();
       state.lastSaved = { bill: res.bill, dataUrl: png };
       state.reports = null;
       exitEdit();
@@ -2691,6 +2703,118 @@ var FDLBill = (function () {
     }).catch(function (e) { clear(out); append(out, errorBox('Search failed: ' + e.message, searchHistory)); });
   }
 
+  /* =================== New Bill suggestions =================== */
+
+  function loadSuggestions() {
+    rpc('getSuggestions').then(function (r) { state.sugg = r; }).catch(function () { /* optional feature */ });
+  }
+
+  /**
+   * Shows previously used values under an input while typing. Tap/Enter picks one; typing
+   * something new works as normal. source(q) returns [{label, sub, value, extra}] and
+   * onPick(item) may fill other boxes.
+   */
+  function attachSuggest(input, source, onPick) {
+    var wrap = input.closest('.fld');
+    wrap.classList.add('has-sugg');
+    var box = el('div', { class: 'sugg', role: 'listbox', hidden: true });
+    wrap.appendChild(box);
+    var items = [], active = -1;
+    input.setAttribute('aria-autocomplete', 'list');
+
+    function close() { box.hidden = true; active = -1; }
+    function pick(i) {
+      var it = items[i];
+      if (!it) return;
+      input.value = it.value;
+      close();
+      if (onPick) onPick(it);
+      form().dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    function highlight(i) {
+      active = i;
+      $all('.sugg-item', box).forEach(function (b, j) { b.classList.toggle('active', j === i); });
+    }
+    function show() {
+      if (!state.sugg) { close(); return; }
+      var q = input.value.trim();
+      items = source(q).slice(0, 6);
+      // Hide when the only match is exactly what is already typed.
+      if (!items.length || (items.length === 1 && items[0].value.toLowerCase() === q.toLowerCase())) { close(); return; }
+      clear(box);
+      if (!q) box.appendChild(el('div', { class: 'sugg-head', text: 'Recent' }));
+      items.forEach(function (it, i) {
+        box.appendChild(el('button', {
+          type: 'button', class: 'sugg-item', role: 'option', tabindex: '-1',
+          onpointerdown: function (e) { e.preventDefault(); },   // keep focus in the input
+          onclick: function () { pick(i); }
+        }, el('b', { text: it.label }), it.sub ? el('small', { text: it.sub }) : null));
+      });
+      box.hidden = false; active = -1;
+    }
+    input.addEventListener('input', show);
+    input.addEventListener('focus', show);
+    input.addEventListener('blur', function () { setTimeout(close, 150); });
+    input.addEventListener('keydown', function (e) {
+      if (box.hidden) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(items.length - 1, active + 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(0, active - 1)); }
+      else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); e.stopPropagation(); pick(active); }
+      else if (e.key === 'Escape') { close(); }
+    });
+  }
+
+  /** Contains-match (letters/digits for numbers), most recent first. */
+  function matchList(list, q, keyFn) {
+    var k = q.toLowerCase();
+    if (!k) return list.slice(0, 5);
+    var starts = [], has = [];
+    list.forEach(function (x) {
+      var v = keyFn(x);
+      var i = v.indexOf(k);
+      if (i === 0) starts.push(x); else if (i > 0) has.push(x);
+    });
+    return starts.concat(has);
+  }
+
+  function fillIfEmpty(name, value) {
+    var e = form().elements[name];
+    if (e && !e.value.trim() && value) e.value = value;
+  }
+
+  function setupSuggestions() {
+    var f = form();
+    attachSuggest(f.elements.customerName, function (q) {
+      return matchList(state.sugg.customers, q, function (c) { return c.name.toLowerCase(); }).map(function (c) {
+        return { label: c.name, sub: [c.phone, billsWord(c.count)].filter(Boolean).join(' · '), value: c.name, extra: c };
+      });
+    }, function (it) { fillIfEmpty('customerPhone', it.extra.phone); });
+
+    attachSuggest(f.elements.vehicleNumber, function (q) {
+      var k = S.normalizeVehicle(q).toLowerCase();
+      return matchList(state.sugg.vehicles, k, function (v) { return S.normalizeVehicle(v.number).toLowerCase(); }).map(function (v) {
+        return { label: v.number, sub: [v.type, v.name, billsWord(v.count)].filter(Boolean).join(' · '), value: v.number, extra: v };
+      });
+    }, function (it) {
+      fillIfEmpty('vehicleType', it.extra.type);
+      fillIfEmpty('customerName', it.extra.name);
+      fillIfEmpty('customerPhone', it.extra.phone);
+    });
+
+    attachSuggest(f.elements.vehicleType, function (q) {
+      return matchList(state.sugg.vehicleTypes, q, function (t) { return t.type.toLowerCase(); }).map(function (t) {
+        return { label: t.type, sub: billsWord(t.count), value: t.type };
+      });
+    });
+
+    attachSuggest(f.elements.customerPhone, function (q) {
+      var k = q.replace(/\D/g, '');
+      return matchList(state.sugg.phones, k, function (p) { return p.phone.replace(/\D/g, ''); }).map(function (p) {
+        return { label: p.phone, sub: p.name, value: p.phone, extra: p };
+      });
+    }, function (it) { fillIfEmpty('customerName', it.extra.name); });
+  }
+
   /* =================== Customers (A to Z) =================== */
 
   function loadCustomers() {
@@ -2917,6 +3041,7 @@ var FDLBill = (function () {
       }
     });
     $('#btn-preview').addEventListener('click', openPreviewModal);
+    setupSuggestions();
 
     $('#succ-share').addEventListener('click', function () { var s = state.lastSaved; if (s) shareBill(s.dataUrl, s.bill); });
     $('#succ-download').addEventListener('click', function () { var s = state.lastSaved; if (s) downloadDataUrl(s.dataUrl, fileNameFor(s.bill)); });
@@ -2958,6 +3083,7 @@ var FDLBill = (function () {
       }
       recalc();
       showView('dashboard');
+      loadSuggestions();
     }).catch(function (e) {
       $('#fatal-msg').textContent = e.message;
       showView('fatal');
