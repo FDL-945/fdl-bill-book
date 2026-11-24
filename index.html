@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="FDL Bill Book">
-  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241557";</script>
+  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241613";</script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>/**
  * pwa-runtime.js — runs only in the installed Android app (GitHub Pages build).
@@ -880,6 +880,13 @@ var FDL_ASSETS = {
   /** Row 12 "Others" is replaced by up to this many named items (name + amount). */
   var MAX_OTHER_ITEMS = 5;
 
+  /** Row 10: the owner chooses F or S for W8. Stored in `w8Type`. */
+  var W8_TYPES = { F: 'F', S: 'S' };
+
+  function w8Label(type) {
+    return W8_TYPES[type] ? 'W8 (' + W8_TYPES[type] + ')' : 'W8';
+  }
+
   function nozzelLabel(type) {
     return NOZZEL_TYPES[type] ? 'Nozzel (' + NOZZEL_TYPES[type] + ')' : 'Nozzel (New or Service)';
   }
@@ -1027,6 +1034,12 @@ var FDL_ASSETS = {
     }
     bill.nozzelType = nt;
 
+    // Row 10: F or S must be chosen when a W8 amount is entered.
+    var wt = String(raw.w8Type || '').trim().toUpperCase();
+    if (wt && !W8_TYPES[wt]) { errors.w8Type = 'Choose F or S for W8.'; wt = ''; }
+    if (bill.itemW8 !== null && !wt && !errors.itemW8) errors.w8Type = 'Choose F or S for W8.';
+    bill.w8Type = wt;
+
     // Row 12+: named "other" items. Old bills with only an itemOthers amount become one "Others" item.
     var others = parseOtherItems(raw.otherItems);
     if (!others.length && raw.itemOthers !== undefined && raw.itemOthers !== null && String(raw.itemOthers).trim() !== '') {
@@ -1132,7 +1145,8 @@ var FDL_ASSETS = {
     for (var i = 0; i < ITEMS.length; i++) {
       var it = ITEMS[i];
       if (it.key === 'itemOthers') break;
-      var label = it.key === 'itemNozzelNewOrService' ? nozzelLabel(bill.nozzelType) : it.label;
+      var label = it.key === 'itemNozzelNewOrService' ? nozzelLabel(bill.nozzelType)
+        : it.key === 'itemW8' ? w8Label(bill.w8Type) : it.label;
       rows.push({ sr: rows.length + 1, label: label, amount: bill[it.key] });
     }
     var others = bill.otherItems || [];
@@ -1168,6 +1182,8 @@ var FDL_ASSETS = {
     NOZZEL_TYPES: NOZZEL_TYPES,
     MAX_OTHER_ITEMS: MAX_OTHER_ITEMS,
     nozzelLabel: nozzelLabel,
+    W8_TYPES: W8_TYPES,
+    w8Label: w8Label,
     parseOtherItems: parseOtherItems,
     billRows: billRows,
     whatsappNumber: whatsappNumber,
@@ -1286,6 +1302,11 @@ var FDL_ASSETS = {
   .fdl-bill .t-head .c3 { text-align: center; padding-right: 0; border-left-color: #ffffff; }
   .fdl-bill .t-row .c { font-size: inherit; font-weight: 600; line-height: inherit; color: #0a1f5c; }
   .fdl-bill .t-row .c3 { font-weight: 700; color: #08174a; }
+  /* Rows that have an amount: light green and prominent (owner request, template v5). */
+  .fdl-bill .t-row.has-amt { background: #b6ebc4; }
+  .fdl-bill .t-row.has-amt .c1 { background: #6fd08a; color: #053d1b; font-weight: 800; }
+  .fdl-bill .t-row.has-amt .c2 { font-weight: 800; color: #04301a; }
+  .fdl-bill .t-row.has-amt .c3 { font-weight: 800; color: #035a25; }
 
   /* ---------- Totals ---------- */
   .fdl-bill .b-total-pill {
@@ -1447,7 +1468,8 @@ var FDLBill = (function () {
     var rowStyle = 'height:' + rowH + 'px;font-size:' + fs + 'px;line-height:' + (rowH - 2) + 'px;';
     var cellStyle = '';
     var rows = list.map(function (r, i) {
-      return '<div class="t-row" style="top:' + (56 + i * rowH) + 'px;' + rowStyle + '">' +
+      var filled = r.amount !== null && r.amount !== undefined && r.amount !== '';
+      return '<div class="t-row' + (filled ? ' has-amt' : '') + '" style="top:' + (56 + i * rowH) + 'px;' + rowStyle + '">' +
         '<div class="c c1"' + cellStyle + '>' + r.sr + '</div>' +
         '<div class="c c2" data-fit="1"' + cellStyle + '>' + esc(r.label) + '</div>' +
         '<div class="c c3" data-fit="1"' + cellStyle + '>' + esc(fmtAmt(r.amount)) + '</div></div>';
@@ -1864,6 +1886,13 @@ var FDLBill = (function () {
           el('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'Nozzel: New or Service' },
             el('label', null, el('input', { type: 'radio', name: 'nozzelType', value: 'NEW' }), el('span', { text: 'New' })),
             el('label', null, el('input', { type: 'radio', name: 'nozzelType', value: 'SERVICE' }), el('span', { text: 'Service' }))));
+      } else if (it.key === 'itemW8') {
+        // Row 10: choose F or S, then enter the amount.
+        mid = el('div', { class: 'item-mid' },
+          el('label', { for: id, text: 'W8' }),
+          el('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'W8: F or S' },
+            el('label', null, el('input', { type: 'radio', name: 'w8Type', value: 'F' }), el('span', { text: 'F' })),
+            el('label', null, el('input', { type: 'radio', name: 'w8Type', value: 'S' }), el('span', { text: 'S' }))));
       } else {
         mid = el('label', { for: id, text: it.label });
       }
@@ -1872,7 +1901,8 @@ var FDLBill = (function () {
         mid,
         amountInput({ id: id, name: it.key, 'aria-label': (it.key === 'itemNozzelNewOrService' ? 'Nozzel' : it.label) + ' amount in PKR' }),
         el('em', { class: 'err', 'data-err': it.key }),
-        it.key === 'itemNozzelNewOrService' ? el('em', { class: 'err', 'data-err': 'nozzelType' }) : null));
+        it.key === 'itemNozzelNewOrService' ? el('em', { class: 'err', 'data-err': 'nozzelType' }) : null,
+        it.key === 'itemW8' ? el('em', { class: 'err', 'data-err': 'w8Type' }) : null));
     });
     // Row 12+: "Others" — write the real item name and its amount; several items allowed.
     box.appendChild(el('div', { class: 'others-head' },
@@ -1932,6 +1962,8 @@ var FDLBill = (function () {
     S.ITEMS.forEach(function (it) { if (f.elements[it.key]) raw[it.key] = f.elements[it.key].value; });
     var nz = f.querySelector('input[name="nozzelType"]:checked');
     raw.nozzelType = nz ? nz.value : '';
+    var w8 = f.querySelector('input[name="w8Type"]:checked');
+    raw.w8Type = w8 ? w8.value : '';
     raw.otherItems = $all('#others .other-row').map(function (r) {
       return { name: r.querySelector('.nm').value, amount: r.querySelector('.amt').value };
     });
@@ -1942,11 +1974,12 @@ var FDLBill = (function () {
     var f = form();
     raw = raw || {};
     Object.keys(raw).forEach(function (k) {
-      if (k === 'nozzelType' || k === 'otherItems') return;
+      if (k === 'nozzelType' || k === 'w8Type' || k === 'otherItems') return;
       var e = f.elements[k];
       if (e && e.tagName && typeof raw[k] !== 'object') e.value = raw[k] === null || raw[k] === undefined ? '' : raw[k];
     });
     $all('input[name="nozzelType"]', f).forEach(function (r) { r.checked = r.value === raw.nozzelType; });
+    $all('input[name="w8Type"]', f).forEach(function (r) { r.checked = r.value === raw.w8Type; });
     setOtherRows(S.parseOtherItems(raw.otherItems));
   }
 
@@ -2011,8 +2044,9 @@ var FDLBill = (function () {
     $all('[data-err]', form()).forEach(function (em) {
       var key = em.getAttribute('data-err');
       var msg = v.errors[key] || '';
-      var amountType = /^item|^other|^clearBill$|^discount$|^nozzelType$/.test(key);
+      var amountType = /^item|^other|^clearBill$|^discount$|^nozzelType$|^w8Type$/.test(key);
       if (key === 'nozzelType' && !$('input[name="nozzelType"]:checked', form()) && !form().elements.itemNozzelNewOrService.value) msg = '';
+      if (key === 'w8Type' && !$('input[name="w8Type"]:checked', form()) && !form().elements.itemW8.value) msg = '';
       if (em.textContent || (msg && amountType)) {
         em.textContent = msg;
         var wrap = em.closest('.fld, .item, .other-row');
@@ -2138,7 +2172,7 @@ var FDLBill = (function () {
     clearErrors();
     form().reset();
     var raw = {};
-    ['billDate', 'customerName', 'customerPhone', 'serialNumber', 'vehicleNumber', 'vehicleType', 'clearBill', 'discount', 'remarks', 'nozzelType'].forEach(function (k) { raw[k] = b[k]; });
+    ['billDate', 'customerName', 'customerPhone', 'serialNumber', 'vehicleNumber', 'vehicleType', 'clearBill', 'discount', 'remarks', 'nozzelType', 'w8Type'].forEach(function (k) { raw[k] = b[k]; });
     if (!raw.discount) raw.discount = '';
     S.ITEMS.forEach(function (it) { if (it.key !== 'itemOthers') raw[it.key] = b[it.key] === null ? '' : b[it.key]; });
     raw.otherItems = b.otherItems || [];
@@ -2730,7 +2764,7 @@ var FDLBill = (function () {
       recalc(); saveDraft(); schedulePreview();
     });
     f.addEventListener('change', function (e) {
-      if (e.target.name === 'nozzelType') { recalc(); saveDraft(); schedulePreview(); }
+      if (e.target.name === 'nozzelType' || e.target.name === 'w8Type') { recalc(); saveDraft(); schedulePreview(); }
     });
     // Enter on a single-line field moves to the next field instead of submitting.
     f.addEventListener('keydown', function (e) {
