@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="FDL Bill Book">
-  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241539";</script>
+  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241548";</script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>/**
  * pwa-runtime.js — runs only in the installed Android app (GitHub Pages build).
@@ -220,9 +220,39 @@
   restore();
 
   /* ---------- Offline helper (makes the app installable and start fast) ---------- */
+  var swReg = null;
   if ('serviceWorker' in navigator && !CFG.dev) {
-    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { /* optional */ }); });
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').then(function (r) { swReg = r; }).catch(function () { /* optional */ });
+    });
   }
+
+  /* ---------- Self-update ----------
+   * Android often keeps the app open in the background, so "reopening" it does not reload it.
+   * Every time the app starts or comes back to the front, ask the site which version is current
+   * and reload once if it is newer. Never reloads while a bill is being saved or a dialog is open. */
+  var lastCheck = 0;
+  function busyNow() {
+    var b = document.getElementById('busy'), m = document.getElementById('modal');
+    return (b && !b.hidden) || (m && !m.hidden);
+  }
+  function checkForUpdate() {
+    if (CFG.dev || !window.FDL_BUILD || Date.now() - lastCheck < 20000) return;
+    lastCheck = Date.now();
+    fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
+      if (!v || !v.build || v.build === window.FDL_BUILD) return;
+      var tried = '';
+      try { tried = sessionStorage.getItem('fdl.updateTried') || ''; } catch (e) { /* ignore */ }
+      if (tried === v.build) return; // already reloaded for this version once
+      if (busyNow()) { lastCheck = 0; setTimeout(checkForUpdate, 15000); return; }
+      try { sessionStorage.setItem('fdl.updateTried', v.build); } catch (e) { /* ignore */ }
+      var done = function () { location.reload(); };
+      if (swReg) swReg.update().then(done, done); else done();
+    }).catch(function () { /* offline: try again later */ });
+  }
+  window.addEventListener('load', function () { setTimeout(checkForUpdate, 1500); });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') checkForUpdate(); });
+  window.addEventListener('focus', checkForUpdate);
 })();
 </script>
   
@@ -352,6 +382,9 @@
   button.stat:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
   .stat.discount strong { color: #1b7f3b; }
   @media (max-width: 699px) { .stats.six .stat.pending { grid-column: 1 / -1; } }
+  .sort-bar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; margin-bottom: 12px; }
+  .sort-bar label { font-weight: 700; color: var(--navy); white-space: nowrap; }
+  .sort-bar select { flex: 1; min-width: 0; min-height: var(--tap); border: 1.5px solid #c6d4ec; border-radius: 10px; padding: 0 12px; font-size: 16px; background: #fff; }
   .filter-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: var(--sky); border-radius: 12px; padding: 8px 12px; margin: 0 0 12px; font-weight: 600; color: var(--navy); }
 
   .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
@@ -716,25 +749,16 @@
     <!-- All bills -->
     <section id="view-bills" class="view" hidden>
       <h1 class="page-title" id="bills-title">All Bills</h1>
-      <form id="bills-filter" class="card filters">
-        <div class="grid3">
-          <label class="fld"><span>Vehicle No</span><input name="vehicle" type="search" autocapitalize="characters"></label>
-          <label class="fld"><span>Customer</span><input name="customer" type="search"></label>
-          <label class="fld"><span>Bill ID</span><input name="billId" type="search" autocapitalize="characters" placeholder="FDL-00001"></label>
-          <label class="fld"><span>Serial No</span><input name="serial" type="search"></label>
-          <label class="fld"><span>Phone</span><input name="phone" type="search" inputmode="tel"></label>
-          <label class="fld"><span>From</span><input name="dateFrom" type="date"></label>
-          <label class="fld"><span>To</span><input name="dateTo" type="date"></label>
-          <label class="fld"><span>Status</span>
-            <select name="status"><option value="ALL">All</option><option value="ACTIVE">Active</option><option value="VOID">Cancelled</option></select></label>
-          <label class="fld"><span>Show</span>
-            <select name="show"><option value="ALL">All bills</option><option value="PENDING">Pending (money due)</option><option value="RECEIVED">Payment received</option><option value="PAID">Fully paid</option><option value="DISCOUNT">With discount</option></select></label>
-        </div>
-        <div class="form-actions">
-          <button type="reset" class="btn ghost">Clear</button>
-          <button type="submit" class="btn primary">Apply filters</button>
-        </div>
-      </form>
+      <div class="card sort-bar">
+        <label for="bills-sort">Sort by</label>
+        <select id="bills-sort">
+          <option value="NEWEST">Newest first</option>
+          <option value="OLDEST">Oldest first</option>
+          <option value="AMOUNT_DESC">Amount: high to low</option>
+          <option value="AMOUNT_ASC">Amount: low to high</option>
+          <option value="PENDING_DESC">Pending: highest first</option>
+        </select>
+      </div>
       <div id="bills-out" aria-live="polite"></div>
       <div class="center"><button type="button" class="btn" id="bills-more" hidden>Load more</button></div>
     </section>
@@ -1579,7 +1603,8 @@ var FDLBill = (function () {
     modalReturnFocus: null,
     editing: null,                // bill being edited, or null
     stash: null,
-    billsNote: '',                // e.g. "Pending bills" when opened from a dashboard tile                  // new-bill draft put aside while editing
+    billsNote: '',
+    billsPreset: null,            // hidden filter set by a dashboard tile                // e.g. "Pending bills" when opened from a dashboard tile                  // new-bill draft put aside while editing
     reports: null,
     reportTab: 'daily'
   };
@@ -1781,10 +1806,15 @@ var FDLBill = (function () {
 
   /** Open All Bills with a ready-made filter (used by the dashboard tiles). */
   function openBillsWith(filters, title) {
-    var f = $('#bills-filter');
-    f.reset();
-    Object.keys(filters || {}).forEach(function (k) { if (f.elements[k]) f.elements[k].value = filters[k]; });
+    state.billsPreset = filters || null;   // hidden filter from a dashboard tile; All Bills itself has no filter form
     state.billsNote = title || '';
+    showView('bills');
+  }
+
+  /** All Bills opened normally (menu / big button): every bill, no tile filter. */
+  function openAllBills() {
+    state.billsPreset = null;
+    state.billsNote = '';
     showView('bills');
   }
 
@@ -2521,19 +2551,15 @@ var FDLBill = (function () {
 
   /* =================== All bills =================== */
 
-  function readFilters(f) {
-    return {
-      vehicle: f.elements.vehicle.value, customer: f.elements.customer.value, billId: f.elements.billId.value,
-      serial: f.elements.serial.value, phone: f.elements.phone.value, dateFrom: f.elements.dateFrom.value, dateTo: f.elements.dateTo.value,
-      status: f.elements.status.value, show: f.elements.show.value
-    };
+  function readFilters() {
+    return Object.assign({ status: 'ALL' }, state.billsPreset || {}, { sort: $('#bills-sort').value });
   }
 
   function loadBills(reset) {
     var out = $('#bills-out');
     var more = $('#bills-more');
     if (reset) {
-      state.billsFilters = readFilters($('#bills-filter'));
+      state.billsFilters = readFilters();
       state.billsOffset = 0;
       clear(out); append(out, loadingBox('Loading bills…'));
     }
@@ -2543,12 +2569,14 @@ var FDLBill = (function () {
       if (reset) {
         clear(out);
         if (!r.total) {
-          append(out, emptyState(state.billsNote ? 'No bills: ' + state.billsNote.toLowerCase() : 'No bills match', 'Change or clear the filters.'));
+          append(out, emptyState(state.billsNote ? 'No bills: ' + state.billsNote.toLowerCase() : 'No bills yet',
+            state.billsNote ? 'Tap “Show all bills” to see every bill.' : 'Bills you create appear here.'));
+          if (state.billsNote) append(out, el('div', { class: 'center' }, el('button', { type: 'button', class: 'btn', onclick: openAllBills }, 'Show all bills')));
           more.hidden = true; return;
         }
         if (state.billsNote) {
           append(out, el('div', { class: 'filter-note' }, el('span', { text: 'Showing: ' + state.billsNote }),
-            el('button', { type: 'button', class: 'btn small', onclick: function () { $('#bills-filter').reset(); } }, 'Show all bills')));
+            el('button', { type: 'button', class: 'btn small', onclick: openAllBills }, 'Show all bills')));
         }
         append(out, el('div', { class: 'result-count', text: r.total + (r.total === 1 ? ' bill' : ' bills') + ' found · Billed ' + pkr(r.summary.totalBilled) +
           ' · Received ' + pkr(r.summary.totalReceived) + (r.summary.totalDiscount ? ' · Discount ' + pkr(r.summary.totalDiscount) : '') + ' · Pending ' + pkr(r.summary.totalPending) }));
@@ -2687,8 +2715,8 @@ var FDLBill = (function () {
   /* =================== Boot =================== */
 
   function wire() {
-    $all('.nav-btn').forEach(function (b) { b.addEventListener('click', function () { showView(b.dataset.view); }); });
-    $all('[data-go]').forEach(function (b) { b.addEventListener('click', function () { showView(b.dataset.go); }); });
+    $all('.nav-btn').forEach(function (b) { b.addEventListener('click', function () { if (b.dataset.view === 'bills') openAllBills(); else showView(b.dataset.view); }); });
+    $all('[data-go]').forEach(function (b) { b.addEventListener('click', function () { if (b.dataset.go === 'bills') openAllBills(); else showView(b.dataset.go); }); });
     $('#btn-retry-boot').addEventListener('click', boot);
 
     var f = form();
@@ -2722,8 +2750,7 @@ var FDLBill = (function () {
     $('#succ-another').addEventListener('click', function () { resetForm(); showView('newbill'); setTimeout(function () { form().elements.customerName.focus(); }, 60); });
 
     $('#history-form').addEventListener('submit', searchHistory);
-    $('#bills-filter').addEventListener('submit', function (e) { e.preventDefault(); state.billsNote = ''; loadBills(true); });
-    $('#bills-filter').addEventListener('reset', function () { state.billsNote = ''; setTimeout(function () { loadBills(true); }, 0); });
+    $('#bills-sort').addEventListener('change', function () { loadBills(true); });
     $('#bills-more').addEventListener('click', function () { loadBills(false); });
     $('#reports-filter').addEventListener('submit', loadReports);
     $('#btn-csv').addEventListener('click', exportCsv);
