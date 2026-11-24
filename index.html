@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="FDL Bill Book">
-  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241616";</script>
+  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241626";</script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>/**
  * pwa-runtime.js — runs only in the installed Android app (GitHub Pages build).
@@ -470,10 +470,10 @@
   .item input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(29,95,208,.18); }
   .item .err { grid-column: 2 / -1; margin-top: -4px; }
   .item-mid { min-width: 0; }
-  .seg { display: inline-flex; margin-top: 6px; border: 1.5px solid #c6d4ec; border-radius: 10px; overflow: hidden; }
-  .seg label { position: relative; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .seg { display: inline-flex; margin-top: 4px; border: 1.5px solid #c6d4ec; border-radius: 8px; overflow: hidden; }
+  .seg label { position: relative; font-size: 12px; font-weight: 600; cursor: pointer; }
   .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-  .seg span { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; color: var(--navy); background: #fff; }
+  .seg span { display: inline-flex; align-items: center; min-height: 30px; padding: 0 9px; color: var(--navy); background: #fff; }
   .seg label + label span { border-left: 1.5px solid #c6d4ec; }
   .seg input:checked + span { background: var(--navy); color: #fff; }
   .seg input:focus-visible + span { outline: 3px solid var(--yellow); outline-offset: -3px; }
@@ -483,6 +483,17 @@
   .others-head strong { font-size: 15px; }
   .other-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) 112px 40px; gap: 6px; align-items: center; }
   .other-row .sr { color: var(--muted); font-weight: 700; text-align: right; font-size: 14px; }
+  .other-row textarea.nm { width: 100%; min-height: 46px; resize: none; overflow: hidden; line-height: 1.35; border: 1.5px solid #c6d4ec; border-radius: 10px; padding: 11px 10px; font-size: 16px; font-weight: 600; min-width: 0; font-family: inherit; }
+  .other-row textarea.nm:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(29,95,208,.18); }
+  .other-row.invalid textarea.nm { border-color: var(--danger); background: #fffafa; }
+  .other-row { align-items: start; }
+  /* Name gets its own full-width line (long names up to 50 words); amount and remove button below it. */
+  .other-row .nm { grid-column: 2 / -1; grid-row: 1; }
+  .other-row .sr { grid-row: 1 / span 2; padding-top: 12px; align-self: start; }
+  .other-row .amt { grid-column: 3; grid-row: 2; }
+  .other-row .rm { grid-column: 4; grid-row: 2; }
+  .other-row .err { grid-column: 2 / -1; grid-row: 3; }
+  .other-row + .other-row { border-top: 1px dashed var(--line); padding-top: 8px; }
   .other-row input { width: 100%; min-height: 46px; border: 1.5px solid #c6d4ec; border-radius: 10px; padding: 8px 10px; font-size: 16px; font-weight: 600; min-width: 0; }
   .other-row input.amt { text-align: right; }
   .other-row input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(29,95,208,.18); }
@@ -577,7 +588,7 @@
   .toast.error { background: var(--danger); }
 
   /* Off-screen capture stage: full size, never transformed. */
-  #capture-wrap { position: fixed; left: -12000px; top: 0; width: 1024px; height: 1536px; overflow: hidden; pointer-events: none; }
+  #capture-wrap { position: fixed; left: -12000px; top: 0; width: 1024px; height: 4000px; overflow: hidden; pointer-events: none; }
 
   /* ---------- Print (secondary option): prints the bill image only ---------- */
   @media print {
@@ -870,7 +881,8 @@ var FDL_ASSETS = {
     vehicleNumber: 20,
     vehicleType: 40,
     remarks: 300,
-    otherName: 30,
+    otherName: 400,      // characters (safety cap); the real rule is 50 words
+    otherNameWords: 50,
     customerPhone: 20
   };
 
@@ -878,7 +890,7 @@ var FDL_ASSETS = {
   var NOZZEL_TYPES = { NEW: 'New', SERVICE: 'Service' };
 
   /** Row 12 "Others" is replaced by up to this many named items (name + amount). */
-  var MAX_OTHER_ITEMS = 5;
+  var MAX_OTHER_ITEMS = 10;
 
   /** Row 10: the owner chooses F-B, S-I or F-R for W8. Stored in `w8Type`. */
   var W8_TYPES = { 'F-B': 'F-B', 'S-I': 'S-I', 'F-R': 'F-R' };
@@ -1049,7 +1061,10 @@ var FDL_ASSETS = {
     var cleanOthers = [];
     var otherSum = 0;
     for (var j = 0; j < others.length; j++) {
-      var nm = cleanSingleLine(others[j].name, LIMITS.otherName);
+      var nm = cleanSingleLine(others[j].name, 0);
+      var words = nm ? nm.split(' ').length : 0;
+      if (words > LIMITS.otherNameWords) { errors['other' + j] = 'Item name can have at most ' + LIMITS.otherNameWords + ' words (this one has ' + words + ').'; continue; }
+      if (nm.length > LIMITS.otherName) { errors['other' + j] = 'Item name is too long (max ' + LIMITS.otherName + ' letters).'; continue; }
       var ra = parseAmount(others[j].amount);
       if (!nm && ra.ok && ra.empty) continue; // completely empty line: ignore
       var key = 'other' + j;
@@ -1294,7 +1309,7 @@ var FDL_ASSETS = {
     background: linear-gradient(180deg, #1546a8 0%, #0b2a80 100%); color: #fff;
     font-size: 28px; font-weight: 700; line-height: 56px;
   }
-  .fdl-bill .t-row { position: absolute; left: 0; width: 100%; height: 41.5px; border-top: 2px solid #1d4bb0; font-size: 28px; line-height: 40px; }
+  .fdl-bill .t-row { position: relative; width: 100%; border-top: 2px solid #1d4bb0; font-size: 28px; line-height: 40px; }
   .fdl-bill .t-row:nth-child(even) { background: rgba(225, 238, 253, 0.55); }
   .fdl-bill .c { position: absolute; top: 0; height: 100%; white-space: nowrap; overflow: hidden; }
   .fdl-bill .c1 { left: 0; width: 112px; text-align: center; }
@@ -1303,6 +1318,12 @@ var FDL_ASSETS = {
   .fdl-bill .t-head .c2 { text-align: center; padding-left: 0; border-left-color: #ffffff; }
   .fdl-bill .t-head .c3 { text-align: center; padding-right: 0; border-left-color: #ffffff; }
   .fdl-bill .t-row .c { font-size: inherit; font-weight: 600; line-height: inherit; color: #0a1f5c; }
+  /* Description is in normal flow so a long name wraps and the row grows; Sr/amount stretch to match. */
+  .fdl-bill .t-row .c2 { position: relative; display: block; left: 0; margin-left: 112px; height: auto; white-space: normal; overflow-wrap: anywhere; }
+  .fdl-bill .t-row .c2.wrap { padding-top: 5px; padding-bottom: 5px; }
+  .fdl-bill .t-row .c1, .fdl-bill .t-row .c3 { display: flex; align-items: center; }
+  .fdl-bill .t-row .c1 { justify-content: center; }
+  .fdl-bill .t-row .c3 { justify-content: flex-end; }
   .fdl-bill .t-row .c3 { font-weight: 700; color: #08174a; }
   /* Rows that have an amount: light green and prominent (owner request, template v5). */
   .fdl-bill .t-row.has-amt { background: #b6ebc4; }
@@ -1464,16 +1485,18 @@ var FDLBill = (function () {
     // 12 rows normally; more when several "other" items are entered. The table keeps its size,
     // rows get shorter and the text a little smaller.
     var list = S.billRows(data);
-    var rowH = 500 / list.length;
-    var fs = list.length <= 12 ? 28 : Math.max(19, Math.floor(rowH * 0.7));
+    // Up to 12 rows share the normal table height. With more rows each row keeps at least 34px,
+    // and render() makes the bill taller instead of shrinking the text.
+    var rowH = Math.max(34, 500 / list.length);
+    var fs = list.length <= 12 ? 28 : 24;
     // Font size sits on the row (cells inherit it) so the text-fit pass can still shrink a cell.
-    var rowStyle = 'height:' + rowH + 'px;font-size:' + fs + 'px;line-height:' + (rowH - 2) + 'px;';
+    var rowStyle = 'min-height:' + rowH + 'px;font-size:' + fs + 'px;line-height:' + (rowH - 2) + 'px;';
     var cellStyle = '';
     var rows = list.map(function (r, i) {
       var filled = r.amount !== null && r.amount !== undefined && r.amount !== '';
-      return '<div class="t-row' + (filled ? ' has-amt' : '') + '" style="top:' + (56 + i * rowH) + 'px;' + rowStyle + '">' +
+      return '<div class="t-row' + (filled ? ' has-amt' : '') + '" style="' + (i === 0 ? 'margin-top:56px;' : '') + rowStyle + '">' +
         '<div class="c c1"' + cellStyle + '>' + r.sr + '</div>' +
-        '<div class="c c2" data-fit="1"' + cellStyle + '>' + esc(r.label) + '</div>' +
+        '<div class="c c2" data-label="1"' + cellStyle + '>' + esc(r.label) + '</div>' +
         '<div class="c c3" data-fit="1"' + cellStyle + '>' + esc(fmtAmt(r.amount)) + '</div></div>';
     }).join('');
 
@@ -1508,18 +1531,18 @@ var FDLBill = (function () {
         rows +
       '</div>' +
 
-      '<div class="abs b-total-pill"><img alt="" src="' + ICONS.calc + '"><div class="lbl">Total Bill:</div></div>' +
-      '<div class="abs b-total-val" data-fit="1" data-field="totalBill">' + esc(S.formatPKR(total)) + '</div>' +
+      '<div class="abs b-total-pill" data-below="1"><img alt="" src="' + ICONS.calc + '"><div class="lbl">Total Bill:</div></div>' +
+      '<div class="abs b-total-val" data-below="1" data-fit="1" data-field="totalBill">' + esc(S.formatPKR(total)) + '</div>' +
       // Clear Bill, then Discount, then Pending (owner's order).
-      '<div class="abs b-cp" style="left:22px;width:328px">Clear Bill:<div class="line" style="left:132px;width:196px" data-fit="1" data-field="clearBill">' + esc(S.formatPKR(data.clearBill || 0)) + '</div></div>' +
-      '<div class="abs b-cp" style="left:364px;width:310px">Discount:<div class="line" style="left:124px;width:186px" data-fit="1" data-field="discount">' + esc(S.formatPKR(data.discount || 0)) + '</div></div>' +
-      '<div class="abs b-cp" style="left:690px;width:316px">Pending:<div class="line" style="left:114px;width:202px" data-fit="1" data-field="pending">' + esc(S.formatPKR(data.pending || 0)) + '</div></div>' +
-      '<div class="abs b-remarks"></div>' +
-      '<div class="abs b-remarks-tag"><img alt="" src="' + ICONS.pencil + '"><span>Remarks:</span></div>' +
-      '<div class="abs b-remarks-text" data-fitbox="1" data-field="remarks">' + esc(data.remarks || '') + '</div>' +
+      '<div class="abs b-cp" data-below="1" style="left:22px;width:328px">Clear Bill:<div class="line" style="left:132px;width:196px" data-fit="1" data-field="clearBill">' + esc(S.formatPKR(data.clearBill || 0)) + '</div></div>' +
+      '<div class="abs b-cp" data-below="1" style="left:364px;width:310px">Discount:<div class="line" style="left:124px;width:186px" data-fit="1" data-field="discount">' + esc(S.formatPKR(data.discount || 0)) + '</div></div>' +
+      '<div class="abs b-cp" data-below="1" style="left:690px;width:316px">Pending:<div class="line" style="left:114px;width:202px" data-fit="1" data-field="pending">' + esc(S.formatPKR(data.pending || 0)) + '</div></div>' +
+      '<div class="abs b-remarks" data-below="1"></div>' +
+      '<div class="abs b-remarks-tag" data-below="1"><img alt="" src="' + ICONS.pencil + '"><span>Remarks:</span></div>' +
+      '<div class="abs b-remarks-text" data-below="1" data-fitbox="1" data-field="remarks">' + esc(data.remarks || '') + '</div>' +
 
-      '<img class="abs b-fwave" alt="" src="' + FOOTER_WAVE + '">' +
-      '<div class="abs b-footer" data-section="footer">' +
+      '<img class="abs b-fwave" data-below="1" alt="" src="' + FOOTER_WAVE + '">' +
+      '<div class="abs b-footer" data-below="1" data-section="footer">' +
         '<div class="col addr"><img alt="" src="' + ICONS.pinWhite + '"><span data-fit="1">' + esc(st.address) + '</span></div>' +
         '<div class="div" style="left:364px"></div>' +
         '<div class="col name"><div class="n" data-fit="1">' + esc(st.footerName) + '</div><div class="p" data-field="footerPhone">(' + esc(st.footerPhone) + ')</div></div>' +
@@ -1577,10 +1600,50 @@ var FDLBill = (function () {
   }
 
   /** Render into a container element (replaces its contents). Returns the .fdl-bill element. */
+  /**
+   * Long item names wrap onto extra lines (slightly smaller text). If the rows then need more
+   * room than the normal table, the table and the whole bill grow taller and everything below
+   * the table moves down, so nothing is clipped or squeezed.
+   */
+  var BASE_HEIGHT = 1536, TABLE_TOP = 496, TABLE_HEIGHT = 562;
+  function layoutRows(bill) {
+    var labels = bill.querySelectorAll('.t-row .c2[data-label]');
+    for (var i = 0; i < labels.length; i++) {
+      var c = labels[i], row = c.parentNode;
+      var single = parseFloat(row.style.lineHeight) || 40;
+      c.classList.remove('wrap'); c.style.fontSize = ''; c.style.lineHeight = '';
+      if (c.scrollHeight > single + 4) {
+        var fs = Math.max(20, parseFloat(window.getComputedStyle(row).fontSize) - 4);
+        c.classList.add('wrap');
+        c.style.fontSize = fs + 'px';
+        c.style.lineHeight = Math.round(fs * 1.25) + 'px';
+      }
+    }
+    var table = bill.querySelector('.b-table');
+    table.style.height = '';
+    var rowsH = 56;
+    var rows = table.querySelectorAll('.t-row');
+    for (var j = 0; j < rows.length; j++) rowsH += rows[j].getBoundingClientRect().height;
+    // Ignore sub-pixel rounding (a normal 12-row bill must stay exactly 1536px tall).
+    var need = rowsH + 6 - TABLE_HEIGHT;
+    var extra = need > 2 ? Math.ceil(need) : 0;
+    bill.setAttribute('data-extra', String(extra));
+    table.style.height = (TABLE_HEIGHT + extra) + 'px';
+    bill.style.height = (BASE_HEIGHT + extra) + 'px';
+    var below = bill.querySelectorAll('[data-below]');
+    for (var k = 0; k < below.length; k++) {
+      var b = below[k];
+      if (!b.hasAttribute('data-top')) b.setAttribute('data-top', String(parseFloat(window.getComputedStyle(b).top)));
+      b.style.top = (parseFloat(b.getAttribute('data-top')) + extra) + 'px';
+    }
+    return extra;
+  }
+
   function render(container, data, settings, assets) {
     container.innerHTML = html(data, settings, assets);
     var bill = container.firstChild;
     fit(bill);
+    layoutRows(bill);
     return bill;
   }
 
@@ -1599,7 +1662,7 @@ var FDLBill = (function () {
     return Promise.all(ps);
   }
 
-  return { html: html, render: render, fit: fit, waitForImages: waitForImages, ICONS: ICONS };
+  return { html: html, render: render, fit: fit, layoutRows: layoutRows, waitForImages: waitForImages, ICONS: ICONS };
 })();
 </script>
 
@@ -1924,7 +1987,8 @@ var FDLBill = (function () {
     if (list.children.length >= S.MAX_OTHER_ITEMS) { toast('At most ' + S.MAX_OTHER_ITEMS + ' other items per bill.', true); return; }
     var row = el('div', { class: 'other-row' },
       el('span', { class: 'sr' }),
-      el('input', { type: 'text', class: 'nm', maxlength: String(S.LIMITS.otherName), placeholder: 'Item name, e.g. Gasket', autocapitalize: 'words', enterkeyhint: 'next', 'aria-label': 'Other item name' }),
+      el('textarea', { class: 'nm', rows: '1', maxlength: String(S.LIMITS.otherName), placeholder: 'Item name, e.g. Gasket (up to ' + S.LIMITS.otherNameWords + ' words)', autocapitalize: 'sentences', 'aria-label': 'Other item name',
+        oninput: function (e) { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; } }),
       amountInput({ class: 'amt', placeholder: 'Amount', 'aria-label': 'Other item amount in PKR' }),
       el('button', { type: 'button', class: 'rm', 'aria-label': 'Remove this item', onclick: function () {
         if (list.children.length > 1) row.remove();
@@ -1932,7 +1996,11 @@ var FDLBill = (function () {
         renumberOthers(); recalc(); saveDraft(); schedulePreview();
       } }, '×'),
       el('em', { class: 'err' }));
-    if (name !== undefined) row.querySelector('.nm').value = name;
+    if (name !== undefined) {
+      var nmEl = row.querySelector('.nm');
+      nmEl.value = name;
+      setTimeout(function () { nmEl.style.height = 'auto'; nmEl.style.height = nmEl.scrollHeight + 'px'; }, 0);
+    }
     if (amount !== undefined && amount !== null) row.querySelector('.amt').value = String(amount);
     list.appendChild(row);
     return row;
@@ -2071,7 +2139,7 @@ var FDLBill = (function () {
     var w = container.clientWidth || 360;
     var s = w / 1024;
     bill.style.transform = 'scale(' + s + ')';
-    container.style.height = Math.round(1536 * s) + 'px';
+    container.style.height = Math.round((bill.offsetHeight || 1536) * s) + 'px';
   }
 
   function renderPreviewInto(container, data) {
@@ -2243,15 +2311,17 @@ var FDLBill = (function () {
     var node = FDLBill.render(stage, bill, state.settings, FDL_ASSETS);
     await FDLBill.waitForImages(node);
     FDLBill.fit(node); // re-fit after fonts/images settle
+    FDLBill.layoutRows(node); // long names / many items: bill may be taller than 1536px
+    var billH = node.offsetHeight || 1536;
     var canvas = await html2canvas(node, {
       scale: PNG_SCALE,
       backgroundColor: '#ffffff',
       logging: false,
       useCORS: true,
       width: 1024,
-      height: 1536,
+      height: billH,
       windowWidth: 1024,
-      windowHeight: 1536
+      windowHeight: billH
     });
     var url = canvas.toDataURL('image/png');
     clear(stage);
