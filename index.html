@@ -6,7 +6,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="FDL Bill Book">
-  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611201939";</script>
+  <script>window.FDL_PWA_CONFIG = {"apiUrl":"https://script.google.com/macros/s/AKfycbxoSLR6fDTdLjJfesfZHrHu2uCvs2wrnjB7mz6GeIH1zaimnEO0UDcYKZEn3ysaOq7H/exec","clientId":"943594722594-7cj1fg28iakt0bvpul2eh7aagt88543c.apps.googleusercontent.com"}; window.FDL_BUILD = "202611241539";</script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>/**
  * pwa-runtime.js — runs only in the installed Android app (GitHub Pages build).
@@ -343,7 +343,16 @@
   .stat.accent strong { color: var(--yellow); }
   .stat.pending strong { color: #b45309; }
   .stat.wide { grid-column: 1 / -1; }
-  @media (min-width: 700px) { .stats { grid-template-columns: repeat(5, 1fr); } .stat.wide { grid-column: auto; } }
+  @media (min-width: 700px) { .stats { grid-template-columns: repeat(3, 1fr); } .stat.wide { grid-column: auto; } }
+  @media (min-width: 1000px) { .stats.six { grid-template-columns: repeat(6, 1fr); } }
+  button.stat { border: 0; text-align: left; font: inherit; cursor: pointer; position: relative; }
+  button.stat::after { content: '\203A'; position: absolute; right: 12px; top: 10px; font-size: 20px; color: var(--muted); opacity: .7; }
+  button.stat.accent::after { color: #c9d8ff; }
+  button.stat:hover { box-shadow: 0 0 0 2px var(--blue), var(--shadow); }
+  button.stat:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+  .stat.discount strong { color: #1b7f3b; }
+  @media (max-width: 699px) { .stats.six .stat.pending { grid-column: 1 / -1; } }
+  .filter-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: var(--sky); border-radius: 12px; padding: 8px 12px; margin: 0 0 12px; font-weight: 600; color: var(--navy); }
 
   .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
   .big-btn {
@@ -364,7 +373,7 @@
   .bi-date { color: var(--muted); font-size: 13.5px; }
   .bi-main { margin: 4px 0 6px; font-size: 15px; }
   .bi-main b { letter-spacing: .3px; }
-  .bi-money { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 13px; }
+  .bi-money { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 6px; font-size: 13px; }
   .bi-money div { background: var(--sky); border-radius: 8px; padding: 6px 8px; min-width: 0; }
   .bi-money small { display: block; color: var(--muted); font-size: 11.5px; }
   .bi-money strong { font-size: 14px; white-space: nowrap; }
@@ -650,6 +659,9 @@
               <label class="fld"><span>Clear Bill (amount received)</span>
                 <input type="text" name="clearBill" inputmode="numeric" pattern="[0-9,]*" placeholder="0" enterkeyhint="next">
                 <em class="err" data-err="clearBill"></em></label>
+              <label class="fld"><span>Discount</span>
+                <input type="text" name="discount" inputmode="numeric" pattern="[0-9,]*" placeholder="0" enterkeyhint="next">
+                <em class="err" data-err="discount"></em></label>
               <div class="tot-row pending"><span>Pending</span><strong id="calc-pending">Rs 0</strong></div>
             </div>
             <label class="fld"><span>Remarks</span>
@@ -703,7 +715,7 @@
 
     <!-- All bills -->
     <section id="view-bills" class="view" hidden>
-      <h1 class="page-title">All Bills</h1>
+      <h1 class="page-title" id="bills-title">All Bills</h1>
       <form id="bills-filter" class="card filters">
         <div class="grid3">
           <label class="fld"><span>Vehicle No</span><input name="vehicle" type="search" autocapitalize="characters"></label>
@@ -715,7 +727,8 @@
           <label class="fld"><span>To</span><input name="dateTo" type="date"></label>
           <label class="fld"><span>Status</span>
             <select name="status"><option value="ALL">All</option><option value="ACTIVE">Active</option><option value="VOID">Cancelled</option></select></label>
-          <label class="fld check"><input name="pendingOnly" type="checkbox"><span>Pending only</span></label>
+          <label class="fld"><span>Show</span>
+            <select name="show"><option value="ALL">All bills</option><option value="PENDING">Pending (money due)</option><option value="RECEIVED">Payment received</option><option value="PAID">Fully paid</option><option value="DISCOUNT">With discount</option></select></label>
         </div>
         <div class="form-actions">
           <button type="reset" class="btn ghost">Clear</button>
@@ -913,15 +926,16 @@ var FDL_ASSETS = {
     return { ok: true, value: n, empty: false };
   }
 
-  /** Total = sum of 12 items; Pending = Total − Clear. Integers only, so no float error. */
-  function computeTotals(items, clearBill) {
+  /** Total = sum of items; Pending = Total − Clear Bill − Discount. Integers only, so no float error. */
+  function computeTotals(items, clearBill, discount) {
     var total = 0;
     for (var i = 0; i < ITEMS.length; i++) {
       var v = items && items[ITEMS[i].key];
       total += (typeof v === 'number' && isFinite(v)) ? v : 0;
     }
     var clear = (typeof clearBill === 'number' && isFinite(clearBill)) ? clearBill : 0;
-    return { totalBill: total, clearBill: clear, pending: total - clear };
+    var disc = (typeof discount === 'number' && isFinite(discount)) ? discount : 0;
+    return { totalBill: total, clearBill: clear, discount: disc, pending: total - clear - disc };
   }
 
   function isValidIsoDate(s) {
@@ -1017,9 +1031,14 @@ var FDL_ASSETS = {
     if (!c.ok) errors.clearBill = 'Clear Bill ' + c.error + '.';
     var clear = c.ok ? c.value : 0;
 
-    var t = computeTotals(items, clear);
+    var d = parseAmount(raw.discount);
+    if (!d.ok) errors.discount = 'Discount ' + d.error + '.';
+    var disc = d.ok ? d.value : 0;
+
+    var t = computeTotals(items, clear, disc);
     bill.totalBill = t.totalBill;
     bill.clearBill = t.clearBill;
+    bill.discount = t.discount;
     bill.pending = t.pending;
 
     if (!anyItem) errors.items = 'Enter at least one service amount.';
@@ -1027,6 +1046,10 @@ var FDL_ASSETS = {
     if (bill.totalBill > MAX_AMOUNT) errors.items = 'Total Bill is too large.';
     if (!errors.clearBill && bill.clearBill > bill.totalBill) {
       errors.clearBill = 'Clear Bill (' + formatPKR(bill.clearBill) + ') cannot be more than Total Bill (' + formatPKR(bill.totalBill) + ').';
+    }
+    if (!errors.clearBill && !errors.discount && bill.clearBill + bill.discount > bill.totalBill) {
+      errors.discount = 'Discount (' + formatPKR(bill.discount) + ') is more than the amount left after Clear Bill (' +
+        formatPKR(Math.max(0, bill.totalBill - bill.clearBill)) + ').';
     }
     if (bill.pending < 0) bill.pending = 0; // never reached when valid; defensive
 
@@ -1255,7 +1278,7 @@ var FDL_ASSETS = {
     background: #ffffff; text-align: center; font-size: 38px; font-weight: 800; line-height: 56px; color: #0b2a80;
     white-space: nowrap; overflow: hidden;
   }
-  .fdl-bill .b-cp { top: 1156px; height: 48px; font-size: 28px; font-weight: 800; color: #0b2a80; line-height: 48px; white-space: nowrap; }
+  .fdl-bill .b-cp { top: 1156px; height: 48px; font-size: 25px; font-weight: 800; color: #0b2a80; line-height: 48px; white-space: nowrap; }
   .fdl-bill .b-cp .line {
     position: absolute; top: 0; height: 46px; border-bottom: 2.5px solid #0b2a80; text-align: center;
     font-size: 30px; font-weight: 800; color: #08174a; overflow: hidden;
@@ -1439,8 +1462,10 @@ var FDLBill = (function () {
 
       '<div class="abs b-total-pill"><img alt="" src="' + ICONS.calc + '"><div class="lbl">Total Bill:</div></div>' +
       '<div class="abs b-total-val" data-fit="1" data-field="totalBill">' + esc(S.formatPKR(total)) + '</div>' +
-      '<div class="abs b-cp" style="left:142px;width:470px">Clear Bill:<div class="line" style="left:140px;width:330px" data-fit="1" data-field="clearBill">' + esc(S.formatPKR(data.clearBill || 0)) + '</div></div>' +
-      '<div class="abs b-cp" style="left:646px;width:360px">Pending:<div class="line" style="left:130px;width:230px" data-fit="1" data-field="pending">' + esc(S.formatPKR(data.pending || 0)) + '</div></div>' +
+      // Clear Bill, then Discount, then Pending (owner's order).
+      '<div class="abs b-cp" style="left:22px;width:328px">Clear Bill:<div class="line" style="left:132px;width:196px" data-fit="1" data-field="clearBill">' + esc(S.formatPKR(data.clearBill || 0)) + '</div></div>' +
+      '<div class="abs b-cp" style="left:364px;width:310px">Discount:<div class="line" style="left:124px;width:186px" data-fit="1" data-field="discount">' + esc(S.formatPKR(data.discount || 0)) + '</div></div>' +
+      '<div class="abs b-cp" style="left:690px;width:316px">Pending:<div class="line" style="left:114px;width:202px" data-fit="1" data-field="pending">' + esc(S.formatPKR(data.pending || 0)) + '</div></div>' +
       '<div class="abs b-remarks"></div>' +
       '<div class="abs b-remarks-tag"><img alt="" src="' + ICONS.pencil + '"><span>Remarks:</span></div>' +
       '<div class="abs b-remarks-text" data-fitbox="1" data-field="remarks">' + esc(data.remarks || '') + '</div>' +
@@ -1553,7 +1578,8 @@ var FDLBill = (function () {
     imgCache: new Map(),
     modalReturnFocus: null,
     editing: null,                // bill being edited, or null
-    stash: null,                  // new-bill draft put aside while editing
+    stash: null,
+    billsNote: '',                // e.g. "Pending bills" when opened from a dashboard tile                  // new-bill draft put aside while editing
     reports: null,
     reportTab: 'daily'
   };
@@ -1716,6 +1742,7 @@ var FDLBill = (function () {
       el('div', { class: 'bi-money' },
         el('div', null, el('small', { text: 'Total' }), el('strong', { text: pkr(b.totalBill) })),
         el('div', null, el('small', { text: 'Cleared' }), el('strong', { text: pkr(b.clearBill) })),
+        b.discount > 0 ? el('div', null, el('small', { text: 'Discount' }), el('strong', { text: pkr(b.discount) })) : null,
         el('div', { class: 'pend' }, el('small', { text: 'Pending' }), el('strong', { text: pkr(b.pending) }))),
       el('div', { class: 'bi-actions' },
         el('button', { type: 'button', class: 'btn small primary', onclick: function () { openBill(b); } }, 'View Bill'),
@@ -1744,18 +1771,38 @@ var FDLBill = (function () {
     return el('div', { class: 'stat ' + (cls || '') }, el('small', { text: label }), el('strong', { text: value }));
   }
 
+  /** A stat tile you can tap: opens All Bills with the matching filter. */
+  function statBtn(label, value, cls, filters, title) {
+    return el('button', {
+      type: 'button', class: 'stat ' + (cls || ''), 'aria-label': label + ': ' + value + '. Show these bills.',
+      onclick: function () { openBillsWith(filters, title); }
+    }, el('small', { text: label }), el('strong', { text: value }));
+  }
+
+  /** Open All Bills with a ready-made filter (used by the dashboard tiles). */
+  function openBillsWith(filters, title) {
+    var f = $('#bills-filter');
+    f.reset();
+    Object.keys(filters || {}).forEach(function (k) { if (f.elements[k]) f.elements[k].value = filters[k]; });
+    state.billsNote = title || '';
+    showView('bills');
+  }
+
   function loadDashboard() {
     var box = $('#dash-stats');
     var recent = $('#dash-recent');
     if (!box.firstChild) append(box, loadingBox('Loading totals…'));
     rpc('getDashboardStats').then(function (d) {
       clear(box);
+      box.classList.add('six');
+      var today = d.today || todayLocal();
       append(box, [
-        stat('Total Bills Generated', S.formatNumber(d.totalBills), 'accent wide'),
-        stat('Bills Today', S.formatNumber(d.billsToday)),
-        stat('Total Billed', pkr(d.totalBilled)),
-        stat('Total Received', pkr(d.totalReceived)),
-        stat('Total Pending', pkr(d.totalPending), 'pending')
+        statBtn('Total Bills Generated', S.formatNumber(d.totalBills), 'accent wide', { status: 'ACTIVE' }, 'All bills'),
+        statBtn('Bills Today', S.formatNumber(d.billsToday), '', { status: 'ACTIVE', dateFrom: today, dateTo: today }, 'Bills made today'),
+        statBtn('Total Billed', pkr(d.totalBilled), '', { status: 'ACTIVE' }, 'All billed bills'),
+        statBtn('Total Received', pkr(d.totalReceived), '', { status: 'ACTIVE', show: 'RECEIVED' }, 'Bills with payment received'),
+        statBtn('Total Discount', pkr(d.totalDiscount || 0), 'discount', { status: 'ACTIVE', show: 'DISCOUNT' }, 'Bills with a discount'),
+        statBtn('Total Pending', pkr(d.totalPending), 'pending', { status: 'ACTIVE', show: 'PENDING' }, 'Pending bills (money still due)')
       ]);
       clear(recent);
       if (!d.recent.length) {
@@ -1849,7 +1896,7 @@ var FDLBill = (function () {
   function readForm() {
     var f = form();
     var raw = {};
-    ['billDate', 'customerName', 'customerPhone', 'serialNumber', 'vehicleNumber', 'vehicleType', 'clearBill', 'remarks'].forEach(function (n) {
+    ['billDate', 'customerName', 'customerPhone', 'serialNumber', 'vehicleNumber', 'vehicleType', 'clearBill', 'discount', 'remarks'].forEach(function (n) {
       raw[n] = f.elements[n].value;
     });
     S.ITEMS.forEach(function (it) { if (f.elements[it.key]) raw[it.key] = f.elements[it.key].value; });
@@ -1927,14 +1974,14 @@ var FDLBill = (function () {
   function recalc() {
     var v = S.validateBill(readForm());
     $('#calc-total').textContent = pkr(v.bill.totalBill);
-    $('#calc-pending').textContent = pkr(Math.max(0, v.bill.totalBill - v.bill.clearBill));
+    $('#calc-pending').textContent = pkr(Math.max(0, v.bill.totalBill - v.bill.clearBill - v.bill.discount));
     if (v.ok) $('#form-error').hidden = true;
     // Inline errors while typing: amount-type errors appear at once; any error already shown
     // is updated or cleared as soon as it is fixed.
     $all('[data-err]', form()).forEach(function (em) {
       var key = em.getAttribute('data-err');
       var msg = v.errors[key] || '';
-      var amountType = /^item|^other|^clearBill$|^nozzelType$/.test(key);
+      var amountType = /^item|^other|^clearBill$|^discount$|^nozzelType$/.test(key);
       if (key === 'nozzelType' && !$('input[name="nozzelType"]:checked', form()) && !form().elements.itemNozzelNewOrService.value) msg = '';
       if (em.textContent || (msg && amountType)) {
         em.textContent = msg;
@@ -1997,6 +2044,7 @@ var FDLBill = (function () {
           el('dt', { text: 'Customer' }), el('dd', { text: b.customerName }),
           el('dt', { text: 'Total Bill' }), el('dd', { text: pkr(b.totalBill) }),
           el('dt', { text: 'Clear Bill' }), el('dd', { text: pkr(b.clearBill) }),
+          el('dt', { text: 'Discount' }), el('dd', { text: pkr(b.discount) }),
           el('dt', { text: 'Pending' }), el('dd', { text: pkr(b.pending) })),
         el('p', { class: 'hint', text: editing
           ? 'A new bill image is made and saved. The old image stays in Drive and the change is recorded in the AuditLog.'
@@ -2060,7 +2108,8 @@ var FDLBill = (function () {
     clearErrors();
     form().reset();
     var raw = {};
-    ['billDate', 'customerName', 'customerPhone', 'serialNumber', 'vehicleNumber', 'vehicleType', 'clearBill', 'remarks', 'nozzelType'].forEach(function (k) { raw[k] = b[k]; });
+    ['billDate', 'customerName', 'customerPhone', 'serialNumber', 'vehicleNumber', 'vehicleType', 'clearBill', 'discount', 'remarks', 'nozzelType'].forEach(function (k) { raw[k] = b[k]; });
+    if (!raw.discount) raw.discount = '';
     S.ITEMS.forEach(function (it) { if (it.key !== 'itemOthers') raw[it.key] = b[it.key] === null ? '' : b[it.key]; });
     raw.otherItems = b.otherItems || [];
     writeForm(raw);
@@ -2272,7 +2321,7 @@ var FDLBill = (function () {
       kv('Status', b.recordStatus === 'VOID' ? 'Cancelled (void)' : (b.pending > 0 ? 'Pending payment' : 'Paid')),
       kv('Date', dateDisp(b.billDate)), kv('Customer', b.customerName), kv('Phone', b.customerPhone || '—'), kv('Serial No', b.serialNumber || '—'),
       kv('Vehicle', b.vehicleNumber + (b.vehicleType ? ' (' + b.vehicleType + ')' : '')),
-      kv('Total', pkr(b.totalBill)), kv('Cleared', pkr(b.clearBill)), kv('Pending', pkr(b.pending)),
+      kv('Total', pkr(b.totalBill)), kv('Cleared', pkr(b.clearBill)), kv('Discount', pkr(b.discount || 0)), kv('Pending', pkr(b.pending)),
       kv('Remarks', b.remarks || '—'), kv('Saved', String(b.createdAt || '').replace('T', ' ').slice(0, 16)),
       b.updatedAt && b.updatedAt !== b.createdAt ? kv('Updated', String(b.updatedAt).replace('T', ' ').slice(0, 16)) : null,
       kv('Template', b.templateVersion || '—'));
@@ -2283,7 +2332,7 @@ var FDLBill = (function () {
     ];
     if (b.recordStatus !== 'VOID') {
       buttons.push({ label: 'Edit bill', onClick: function () { startEdit(b); } });
-      buttons.push({ label: 'Record payment / remarks', onClick: function () { openPaymentEditor(b); } });
+      buttons.push({ label: 'Record payment / discount', onClick: function () { openPaymentEditor(b); } });
       buttons.push({ label: 'Cancel bill (void)', cls: 'danger', onClick: function () { openVoid(b, 'VOID'); } });
     } else {
       buttons.push({ label: 'Restore bill', onClick: function () { openVoid(b, 'ACTIVE'); } });
@@ -2306,27 +2355,30 @@ var FDLBill = (function () {
 
   function openPaymentEditor(b) {
     var clearIn = el('input', { type: 'text', inputmode: 'numeric', pattern: '[0-9,]*', value: String(b.clearBill || 0) });
+    var discIn = el('input', { type: 'text', inputmode: 'numeric', pattern: '[0-9,]*', value: String(b.discount || 0) });
     var remarksIn = el('textarea', { rows: '3', maxlength: '300' });
     remarksIn.value = b.remarks || '';
     var pendOut = el('strong', { text: pkr(b.pending) });
     var err = el('em', { class: 'err' });
     function merged() {
-      var raw = Object.assign({}, b, { clearBill: clearIn.value, remarks: remarksIn.value });
+      var raw = Object.assign({}, b, { clearBill: clearIn.value, discount: discIn.value, remarks: remarksIn.value });
       S.ITEMS.forEach(function (it) { raw[it.key] = b[it.key] === null ? '' : b[it.key]; });
       return S.validateBill(raw);
     }
     function upd() {
       var v = merged();
-      pendOut.textContent = pkr(Math.max(0, v.bill.totalBill - v.bill.clearBill));
-      err.textContent = v.errors.clearBill || v.errors.remarks || '';
+      pendOut.textContent = pkr(Math.max(0, v.bill.totalBill - v.bill.clearBill - v.bill.discount));
+      err.textContent = v.errors.clearBill || v.errors.discount || v.errors.remarks || '';
     }
     clearIn.addEventListener('input', upd);
+    discIn.addEventListener('input', upd);
     openModal({
-      title: 'Payment / remarks — ' + b.billId,
+      title: 'Payment / discount — ' + b.billId,
       body: [
         el('div', { class: 'totals' },
           el('div', { class: 'tot-row' }, el('span', { text: 'Total Bill' }), el('strong', { text: pkr(b.totalBill) })),
-          el('label', { class: 'fld' }, el('span', { text: 'Clear Bill (total received so far)' }), clearIn, err),
+          el('label', { class: 'fld' }, el('span', { text: 'Clear Bill (total received so far)' }), clearIn),
+          el('label', { class: 'fld' }, el('span', { text: 'Discount' }), discIn, err),
           el('div', { class: 'tot-row pending' }, el('span', { text: 'Pending' }), pendOut)),
         el('label', { class: 'fld' }, el('span', { text: 'Remarks' }), remarksIn),
         el('p', { class: 'hint', text: 'A new bill image will be generated and saved. The previous image is kept in Drive and the change is recorded in the AuditLog.' })
@@ -2337,13 +2389,13 @@ var FDLBill = (function () {
         {
           label: 'Save changes', cls: 'primary', keepOpen: true, onClick: async function () {
             var v = merged();
-            if (!v.ok) { err.textContent = v.errors.clearBill || v.errors.remarks || 'Please check the values.'; return; }
+            if (!v.ok) { err.textContent = v.errors.clearBill || v.errors.discount || v.errors.remarks || 'Please check the values.'; return; }
             closeModal();
             try {
               busy('Creating updated bill image…');
               var png = await renderPng(v.bill);
               busy('Saving changes…');
-              var res = await rpc('updateBill', b.billId, { clearBill: clearIn.value, remarks: remarksIn.value }, png);
+              var res = await rpc('updateBill', b.billId, { clearBill: clearIn.value, discount: discIn.value, remarks: remarksIn.value }, png);
               unbusy();
               if (res.unchanged) { toast('Nothing changed.'); return; }
               state.imgCache.set(b.billId, png);
@@ -2450,6 +2502,7 @@ var FDLBill = (function () {
           stat('Total visits / bills', S.formatNumber(s.count) + (s.voidCount ? ' (+' + s.voidCount + ' cancelled)' : ''), 'accent'),
           stat('Total billed', pkr(s.totalBilled)),
           stat('Total received', pkr(s.totalReceived)),
+          s.totalDiscount ? stat('Total discount', pkr(s.totalDiscount), 'discount') : null,
           stat('Pending balance', pkr(s.totalPending), 'pending')));
         var list = el('div', { class: 'list' });
         r.bills.slice(0, r.exactCount).forEach(function (b) { list.appendChild(billItem(b)); });
@@ -2472,7 +2525,7 @@ var FDLBill = (function () {
     return {
       vehicle: f.elements.vehicle.value, customer: f.elements.customer.value, billId: f.elements.billId.value,
       serial: f.elements.serial.value, phone: f.elements.phone.value, dateFrom: f.elements.dateFrom.value, dateTo: f.elements.dateTo.value,
-      status: f.elements.status.value, pendingOnly: f.elements.pendingOnly.checked
+      status: f.elements.status.value, show: f.elements.show.value
     };
   }
 
@@ -2489,8 +2542,16 @@ var FDLBill = (function () {
     rpc('searchBills', q).then(function (r) {
       if (reset) {
         clear(out);
-        if (!r.total) { append(out, emptyState('No bills match', 'Change or clear the filters.')); more.hidden = true; return; }
-        append(out, el('div', { class: 'result-count', text: r.total + (r.total === 1 ? ' bill' : ' bills') + ' found · Billed ' + pkr(r.summary.totalBilled) + ' · Pending ' + pkr(r.summary.totalPending) }));
+        if (!r.total) {
+          append(out, emptyState(state.billsNote ? 'No bills: ' + state.billsNote.toLowerCase() : 'No bills match', 'Change or clear the filters.'));
+          more.hidden = true; return;
+        }
+        if (state.billsNote) {
+          append(out, el('div', { class: 'filter-note' }, el('span', { text: 'Showing: ' + state.billsNote }),
+            el('button', { type: 'button', class: 'btn small', onclick: function () { $('#bills-filter').reset(); } }, 'Show all bills')));
+        }
+        append(out, el('div', { class: 'result-count', text: r.total + (r.total === 1 ? ' bill' : ' bills') + ' found · Billed ' + pkr(r.summary.totalBilled) +
+          ' · Received ' + pkr(r.summary.totalReceived) + (r.summary.totalDiscount ? ' · Discount ' + pkr(r.summary.totalDiscount) : '') + ' · Pending ' + pkr(r.summary.totalPending) }));
         append(out, el('div', { class: 'list', id: 'bills-list' }));
       }
       var list = $('#bills-list');
@@ -2529,7 +2590,7 @@ var FDLBill = (function () {
     var t = r.totals;
     append(out, el('div', { class: 'stats' },
       stat('Bills', S.formatNumber(t.count) + (t.voidCount ? ' (+' + t.voidCount + ' void)' : ''), 'accent wide'),
-      stat('Billed', pkr(t.billed)), stat('Received', pkr(t.received)), stat('Pending', pkr(t.pending), 'pending'),
+      stat('Billed', pkr(t.billed)), stat('Received', pkr(t.received)), stat('Discount', pkr(t.discount || 0), 'discount'), stat('Pending', pkr(t.pending), 'pending'),
       stat('Outstanding bills', S.formatNumber(r.outstanding.length))));
     var tabs = [['daily', 'Daily'], ['monthly', 'Monthly'], ['vehicles', 'Vehicles'], ['outstanding', 'Outstanding']];
     var tabBar = el('div', { class: 'tabs', role: 'tablist' });
@@ -2543,10 +2604,10 @@ var FDLBill = (function () {
     var rows, head;
     if (state.reportTab === 'daily' || state.reportTab === 'monthly') {
       var data = state.reportTab === 'daily' ? r.daily : r.monthly;
-      head = [state.reportTab === 'daily' ? 'Date' : 'Month', 'Bills', 'Billed', 'Received', 'Pending'];
+      head = [state.reportTab === 'daily' ? 'Date' : 'Month', 'Bills', 'Billed', 'Received', 'Discount', 'Pending'];
       rows = data.map(function (d) {
         var label = state.reportTab === 'daily' ? dateDisp(d.key) : monthLabel(d.key);
-        return { cells: [label, S.formatNumber(d.count), pkr(d.billed), pkr(d.received), pkr(d.pending)] };
+        return { cells: [label, S.formatNumber(d.count), pkr(d.billed), pkr(d.received), pkr(d.discount || 0), pkr(d.pending)] };
       });
     } else if (state.reportTab === 'vehicles') {
       head = ['Vehicle', 'Visits', 'Billed', 'Received', 'Pending', 'Last visit'];
@@ -2562,7 +2623,7 @@ var FDLBill = (function () {
       });
     }
     if (!rows.length) { append(out, emptyState('Nothing to show', 'No saved bills in this period.')); return; }
-    var numCols = { 'Bills': 1, 'Visits': 1, 'Billed': 1, 'Received': 1, 'Pending': 1, 'Total': 1 };
+    var numCols = { 'Bills': 1, 'Visits': 1, 'Billed': 1, 'Received': 1, 'Discount': 1, 'Pending': 1, 'Total': 1 };
     var table = el('table', { class: 'rep' },
       el('thead', null, el('tr', null, head.map(function (h) { return el('th', { class: numCols[h] ? 'num' : '', scope: 'col', text: h }); }))),
       el('tbody', null, rows.map(function (row) {
@@ -2661,8 +2722,8 @@ var FDLBill = (function () {
     $('#succ-another').addEventListener('click', function () { resetForm(); showView('newbill'); setTimeout(function () { form().elements.customerName.focus(); }, 60); });
 
     $('#history-form').addEventListener('submit', searchHistory);
-    $('#bills-filter').addEventListener('submit', function (e) { e.preventDefault(); loadBills(true); });
-    $('#bills-filter').addEventListener('reset', function () { setTimeout(function () { loadBills(true); }, 0); });
+    $('#bills-filter').addEventListener('submit', function (e) { e.preventDefault(); state.billsNote = ''; loadBills(true); });
+    $('#bills-filter').addEventListener('reset', function () { state.billsNote = ''; setTimeout(function () { loadBills(true); }, 0); });
     $('#bills-more').addEventListener('click', function () { loadBills(false); });
     $('#reports-filter').addEventListener('submit', loadReports);
     $('#btn-csv').addEventListener('click', exportCsv);

@@ -1,7 +1,7 @@
 /* Service worker for the installed FDL Bill Book app.
  * Caches only the app's own screens (never bills, never API calls) so the app starts fast.
  * The page is always fetched fresh when online, so updates arrive straight away. */
-var CACHE = 'fdl-app-202611201939';
+var CACHE = 'fdl-app-202611241539';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', function (e) {
